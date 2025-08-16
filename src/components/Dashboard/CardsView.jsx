@@ -153,6 +153,7 @@ const CardsView = ({ students, onStudentsChange, user }) => {
               student={student}
               onAddNote={handleAddNote}
               onDeleteStudent={handleDeleteStudent}
+              onStudentsChange={onStudentsChange}
             />
           </motion.div>
         ))}

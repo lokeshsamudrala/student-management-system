@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit3, Trash2, User, Mail, GraduationCap, Heart, MessageSquare } from 'lucide-react';
+import { Edit3, Trash2, User, Mail, GraduationCap, Heart, MessageSquare, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { supabase } from '../../lib/supabase';
 
-const StudentCard = ({ student, onAddNote, onDeleteStudent, canEdit = true }) => {
+const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, canEdit = true }) => {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [note, setNote] = useState('');
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editNoteText, setEditNoteText] = useState('');
+  const [isUpdatingNote, setIsUpdatingNote] = useState(false);
 
   const handleAddNote = async () => {
     if (!note.trim()) return;
@@ -22,6 +26,59 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, canEdit = true }) =>
     } finally {
       setIsAddingNote(false);
     }
+  };
+
+  const handleEditNote = (noteObj) => {
+    setEditingNoteId(noteObj.id);
+    setEditNoteText(noteObj.notes);
+  };
+
+  const handleUpdateNote = async () => {
+    if (!editNoteText.trim()) return;
+    
+    setIsUpdatingNote(true);
+    try {
+      const { error } = await supabase
+        .from('professor_notes')
+        .update({ notes: editNoteText })
+        .eq('id', editingNoteId);
+
+      if (error) throw error;
+
+      setEditingNoteId(null);
+      setEditNoteText('');
+      onStudentsChange(); // Refresh data
+      toast.success('Note updated successfully');
+    } catch (error) {
+      console.error('Error updating note:', error);
+      toast.error('Failed to update note');
+    } finally {
+      setIsUpdatingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Are you sure you want to delete this note?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('professor_notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      onStudentsChange(); // Refresh data
+      toast.success('Note deleted successfully');
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast.error('Failed to delete note');
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingNoteId(null);
+    setEditNoteText('');
   };
 
   const handleDelete = async () => {
@@ -120,12 +177,72 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, canEdit = true }) =>
           {/* Professor Notes */}
           {student.professor_notes && student.professor_notes.length > 0 && (
             <div className="bg-yellow-50 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-yellow-800 mb-1">Notes</h4>
-              {student.professor_notes.map((noteObj, index) => (
-                <p key={index} className="text-sm text-yellow-700">
-                  {noteObj.notes}
-                </p>
-              ))}
+              <h4 className="text-sm font-medium text-yellow-800 mb-2">Notes</h4>
+              <div className="space-y-2">
+                {student.professor_notes.map((noteObj, index) => (
+                  <div key={noteObj.id || index} className="group">
+                    {editingNoteId === noteObj.id ? (
+                      // Edit mode
+                      <div className="space-y-2">
+                        <textarea
+                          value={editNoteText}
+                          onChange={(e) => setEditNoteText(e.target.value)}
+                          className="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm text-yellow-700 bg-yellow-50 focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
+                          rows={2}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleUpdateNote();
+                            }
+                          }}
+                        />
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={handleUpdateNote}
+                            disabled={isUpdatingNote || !editNoteText.trim()}
+                            className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            {isUpdatingNote ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="flex items-center px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Display mode
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm text-yellow-700 flex-1 pr-2">
+                          {noteObj.notes}
+                        </p>
+                        {canEdit && (
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleEditNote(noteObj)}
+                              className="p-1 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-100 rounded"
+                              title="Edit note"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(noteObj.id)}
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded"
+                              title="Delete note"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

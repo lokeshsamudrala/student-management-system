@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Camera, Plus, X, CheckCircle } from 'lucide-react';
+import { Camera, Plus, X, CheckCircle, Edit3, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
+import EditProfile from './EditProfile';
 
 const ProfileForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -12,6 +13,9 @@ const ProfileForm = () => {
   const [profilePictureError, setProfilePictureError] = useState('');
   const [hobbies, setHobbies] = useState([]);
   const [hobbyInput, setHobbyInput] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [submittedStudentId, setSubmittedStudentId] = useState(null);
+  const [submittedStudentData, setSubmittedStudentData] = useState(null);
   const fileInputRef = useRef(null);
   
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
@@ -64,7 +68,6 @@ const ProfileForm = () => {
       .upload(fileName, file);
 
     if (error){
-        // console.error('Error uploading image:', error);
         throw error;
     } 
     
@@ -76,6 +79,12 @@ const ProfileForm = () => {
   };
 
   const onSubmit = async (data) => {
+    // Validate hobbies manually
+    if (hobbies.length === 0) {
+      toast.error('At least one hobby is required');
+      return;
+    }
+
     // Validate profile picture before submission
     if (!profilePicture) {
       setProfilePictureError('Profile picture is required');
@@ -88,11 +97,9 @@ const ProfileForm = () => {
       let profilePictureUrl = null;
       
       if (profilePicture) {
-        // console.log('Uploading profile picture:', profilePicture);
         profilePictureUrl = await uploadImage(profilePicture);
       }
-      console.log('Profile picture URL:', profilePictureUrl);
-    // profilePictureUrl = 'https://example.com/default-profile-picture.png'; // Placeholder URL for testing
+
       const studentData = {
         email: data.email,
         full_name: data.fullName,
@@ -102,14 +109,17 @@ const ProfileForm = () => {
         hobbies: hobbies,
         about_me: data.aboutMe || null
       };
-      console.log('Submitting student data:', studentData);
 
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('students')
-        .insert([studentData]);
+        .insert([studentData])
+        .select()
+        .single();
 
       if (error) throw error;
 
+      setSubmittedStudentId(insertedData.id);
+      setSubmittedStudentData(insertedData);
       setIsSubmitted(true);
       toast.success('Profile created successfully!');
     } catch (error) {
@@ -119,28 +129,146 @@ const ProfileForm = () => {
     }
   };
 
+  const handleCreateAnother = () => {
+    // Reset all form data
+    setIsSubmitted(false);
+    setProfilePicture(null);
+    setProfilePictureError('');
+    setHobbies([]);
+    setHobbyInput('');
+    setSubmittedStudentId(null);
+    setSubmittedStudentData(null);
+    reset();
+    window.scrollTo(0, 0);
+  };
+
+  const handleEditProfile = () => {
+    setShowEditModal(true);
+  };
+
+  const handleUpdateComplete = async () => {
+    // Refresh the submitted student data
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', submittedStudentId)
+        .single();
+
+      if (error) throw error;
+      setSubmittedStudentData(data);
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      toast.error('Failed to refresh profile data');
+    }
+    setShowEditModal(false);
+  };
+
   if (isSubmitted) {
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="min-h-screen bg-gradient-to-br from-apple-50 to-primary-50 flex items-center justify-center p-4"
-      >
-        <div className="bg-white rounded-apple-lg shadow-apple-lg p-8 text-center max-w-md w-full">
-          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-apple-900 mb-2">Profile Created!</h2>
-          <p className="text-apple-600 mb-6">Your profile has been successfully submitted.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-primary-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-primary-700 transition-colors"
-          >
-            Create Another Profile
-          </button>
-        </div>
-      </motion.div>
+      <>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="min-h-screen bg-gradient-to-br from-apple-50 to-primary-50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white rounded-apple-lg shadow-apple-lg overflow-hidden max-w-2xl w-full">
+            {/* Success Header */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 px-8 py-6 text-center">
+              <CheckCircle className="h-16 w-16 text-white mx-auto mb-4" />
+              <h2 className="text-3xl font-bold text-white mb-2">Profile Created Successfully!</h2>
+              <p className="text-green-100">Your profile has been submitted and is now visible to your professor.</p>
+            </div>
+
+            {/* Profile Preview */}
+            <div className="p-8">
+              <div className="text-center mb-6">
+                <div className="w-24 h-24 rounded-full mx-auto mb-4 overflow-hidden border-4 border-white shadow-apple">
+                  {submittedStudentData?.profile_picture_url ? (
+                    <img
+                      src={submittedStudentData.profile_picture_url}
+                      alt={submittedStudentData.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                      <span className="text-white font-bold text-xl">
+                        {submittedStudentData?.full_name?.charAt(0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <h3 className="text-2xl font-bold text-apple-900">{submittedStudentData?.full_name}</h3>
+                <p className="text-apple-600">{submittedStudentData?.pronoun} • {submittedStudentData?.major}</p>
+              </div>
+
+              {/* Quick Preview */}
+              <div className="bg-apple-50 rounded-apple p-4 mb-6">
+                <h4 className="font-semibold text-apple-900 mb-2">Profile Summary</h4>
+                <div className="space-y-2 text-sm">
+                  <p><span className="font-medium">Email:</span> {submittedStudentData?.email}</p>
+                  {submittedStudentData?.hobbies && submittedStudentData.hobbies.length > 0 && (
+                    <div>
+                      <span className="font-medium">Hobbies:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {submittedStudentData.hobbies.map((hobby, index) => (
+                          <span
+                            key={index}
+                            className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded-full"
+                          >
+                            {hobby}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {submittedStudentData?.about_me && (
+                    <p><span className="font-medium">About:</span> {submittedStudentData.about_me}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={handleEditProfile}
+                  className="flex-1 flex items-center justify-center bg-primary-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                >
+                  <Edit3 className="h-5 w-5 mr-2" />
+                  Edit My Profile
+                </button>
+                <button
+                  onClick={handleCreateAnother}
+                  className="flex-1 flex items-center justify-center bg-apple-200 text-apple-700 px-6 py-3 rounded-xl font-medium hover:bg-apple-300 transition-colors"
+                >
+                  <UserPlus className="h-5 w-5 mr-2" />
+                  Create Another Profile
+                </button>
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-apple">
+                <p className="text-sm text-blue-700 text-center">
+                  <strong>What's next?</strong> Your professor can now see your profile in their dashboard. 
+                  You can edit any part of your profile anytime using the "Edit My Profile" button.
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Edit Profile Modal */}
+        {showEditModal && (
+          <EditProfile
+            studentId={submittedStudentId}
+            onClose={() => setShowEditModal(false)}
+            onUpdate={handleUpdateComplete}
+          />
+        )}
+      </>
     );
   }
 
+  // ... rest of the form JSX remains the same as before
   return (
     <div className="min-h-screen bg-gradient-to-br from-apple-50 to-primary-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -275,25 +403,46 @@ const ProfileForm = () => {
               <label className="block text-sm font-medium text-apple-700 mb-2">
                 Hobbies & Interests *
               </label>
-              <input
-                type="text"
-                value={hobbyInput}
-                onChange={(e) => setHobbyInput(e.target.value)}
-                onKeyPress={addHobby}
-                className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="Type a hobby and press Enter"
-              />
-              {/* Hidden input for react-hook-form validation */}
-              <input
-                type="hidden"
-                {...register('hobbies', { 
-                  validate: () => hobbies.length > 0 || 'At least one hobby is required'
-                })}
-                value={hobbies.join(',')}
-              />
-              {errors.hobbies && (
-                <p className="text-red-500 text-sm mt-1">{errors.hobbies.message}</p>
-              )}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={hobbyInput}
+                  onChange={(e) => setHobbyInput(e.target.value)}
+                  onKeyPress={addHobby}
+                  onBlur={() => {
+                    // Auto-add hobby when user clicks away
+                    if (hobbyInput.trim() && !hobbies.includes(hobbyInput.trim())) {
+                      setHobbies([...hobbies, hobbyInput.trim()]);
+                      setHobbyInput('');
+                    }
+                  }}
+                  className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Type a hobby and press Enter (e.g., 'Movies', 'Hiking')"
+                />
+                {hobbyInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (hobbyInput.trim() && !hobbies.includes(hobbyInput.trim())) {
+                        setHobbies([...hobbies, hobbyInput.trim()]);
+                        setHobbyInput('');
+                      }
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary-600 hover:text-primary-700 text-sm font-medium"
+                  >
+                    Add
+                  </button>
+                )}
+              </div>
+              
+              {/* Better instruction text */}
+              <p className="text-xs text-apple-500 mt-1">
+                {hobbies.length === 0 
+                  ? "Add at least one hobby. Press Enter or click 'Add' after typing each hobby."
+                  : `${hobbies.length} ${hobbies.length === 1 ? 'hobby' : 'hobbies'} added. You can add more!`
+                }
+              </p>
+
               <div className="flex flex-wrap gap-2 mt-3">
                 {hobbies.map(hobby => (
                   <span

@@ -14,7 +14,10 @@ import {
   RotateCw,
   FolderOpen,
   Trash2,
-  Film
+  Film,
+  X,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -22,7 +25,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 
 // Movable Furniture Component
-const FurnitureItem = ({ id, type, position, onMove, zoom, isSelected, onSelect, children }) => {
+const FurnitureItem = ({ id, type, position, onMove, zoom, isSelected, onSelect, children, isBlurred }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
@@ -67,7 +70,7 @@ const FurnitureItem = ({ id, type, position, onMove, zoom, isSelected, onSelect,
 
   return (
     <div
-      className={`absolute select-none cursor-move ${isDragging ? 'z-50' : 'z-5'} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      className={`absolute select-none cursor-move ${isDragging ? 'z-50' : 'z-5'} ${isSelected ? 'ring-2 ring-blue-500' : ''} ${isBlurred ? 'filter blur-sm opacity-50' : ''} transition-all duration-300`}
       style={{
         left: position.x,
         top: position.y,
@@ -81,43 +84,59 @@ const FurnitureItem = ({ id, type, position, onMove, zoom, isSelected, onSelect,
   );
 };
 
-// Updated Student Node Component with better tooltip positioning and all fields
-const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSelect }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
+// Improved Student Node Component with faster drag
+const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSelect, isBlurred, compactMode }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [tooltipPosition, setTooltipPosition] = useState('top');
   const nodeRef = useRef(null);
-  const tooltipRef = useRef(null);
+  const dragTimeoutRef = useRef(null);
 
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
+    
+    // Clear any existing timeout
+    if (dragTimeoutRef.current) {
+      clearTimeout(dragTimeoutRef.current);
+    }
+    
+    // Start drag immediately for better responsiveness
     setIsDragging(true);
     setDragStart({
       x: e.clientX - position.x,
       y: e.clientY - position.y
     });
-    onSelect(data.id);
     e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleMouseMove = useCallback((e) => {
     if (!isDragging) return;
     
-    const newPosition = {
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    };
-    onMove(data.id, newPosition);
+    // Immediate position update for smooth dragging
+    requestAnimationFrame(() => {
+      const newPosition = {
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      };
+      onMove(data.id, newPosition);
+    });
   }, [isDragging, dragStart, data.id, onMove]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
+  const handleClick = (e) => {
+    e.stopPropagation();
+    // Only trigger selection if not dragging
+    if (!isDragging) {
+      onSelect(data.id);
+    }
+  };
+
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
       document.addEventListener('mouseup', handleMouseUp);
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
@@ -126,85 +145,27 @@ const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSel
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Calculate optimal tooltip position to avoid overlaps
-  const calculateTooltipPosition = useCallback(() => {
-    if (!nodeRef.current) return;
-
-    const nodeRect = nodeRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    
-    // Check if there's enough space above
-    const spaceAbove = nodeRect.top;
-    const spaceBelow = viewportHeight - nodeRect.bottom;
-    const spaceLeft = nodeRect.left;
-    const spaceRight = viewportWidth - nodeRect.right;
-
-    // Tooltip dimensions (approximate)
-    const tooltipHeight = 400;
-    const tooltipWidth = 320;
-
-    let newPosition = 'top';
-
-    if (spaceAbove >= tooltipHeight) {
-      newPosition = 'top';
-    } else if (spaceBelow >= tooltipHeight) {
-      newPosition = 'bottom';
-    } else if (spaceRight >= tooltipWidth) {
-      newPosition = 'right';
-    } else if (spaceLeft >= tooltipWidth) {
-      newPosition = 'left';
-    } else {
-      // Fallback to top if no good position
-      newPosition = 'top';
-    }
-
-    setTooltipPosition(newPosition);
-  }, []);
-
-  const handleMouseEnter = () => {
-    setShowTooltip(true);
-    calculateTooltipPosition();
-  };
-
   const scale = zoom / 100;
   const nameParts = data.full_name.split(' ');
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
-  // Tooltip positioning classes
-  const getTooltipClasses = () => {
-    const baseClasses = "absolute z-50 w-80 bg-white rounded-lg shadow-xl border border-apple-200 p-4 print:hidden";
-    
-    switch (tooltipPosition) {
-      case 'bottom':
-        return `${baseClasses} top-full left-1/2 transform -translate-x-1/2 mt-2`;
-      case 'right':
-        return `${baseClasses} left-full top-1/2 transform -translate-y-1/2 ml-2`;
-      case 'left':
-        return `${baseClasses} right-full top-1/2 transform -translate-y-1/2 mr-2`;
-      default: // top
-        return `${baseClasses} bottom-full left-1/2 transform -translate-x-1/2 mb-2`;
-    }
-  };
-
   return (
     <div 
       ref={nodeRef}
-      className={`absolute select-none ${isDragging ? 'z-50' : 'z-10'} ${isSelected ? 'ring-2 ring-primary-500' : ''}`}
+      className={`absolute select-none ${isDragging ? 'z-50' : 'z-10'} ${isSelected ? 'ring-2 ring-primary-500 ring-offset-2' : ''} ${isBlurred ? 'filter blur-sm opacity-40' : ''} transition-all duration-300 cursor-pointer`}
       style={{
         left: position.x,
         top: position.y,
         transform: `scale(${scale})`,
         transformOrigin: 'center center'
       }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setShowTooltip(false)}
       onMouseDown={handleMouseDown}
+      onClick={handleClick}
       onDoubleClick={() => onRemove(data.id)}
     >
       {/* Student Avatar */}
-      <div className={`w-16 h-16 rounded-full border-2 border-white shadow-lg overflow-hidden bg-white cursor-move hover:scale-110 transition-transform ${isDragging ? 'opacity-80' : ''}`}>
+      <div className={`w-16 h-16 rounded-full border-2 border-white shadow-lg overflow-hidden bg-white hover:scale-110 transition-transform ${isDragging ? 'opacity-80 cursor-grabbing' : 'cursor-grab'} ${isSelected ? 'ring-2 ring-primary-400 ring-offset-1' : ''}`}>
         {data.profile_picture_url ? (
           <img
             src={data.profile_picture_url}
@@ -221,7 +182,7 @@ const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSel
         )}
       </div>
       
-      {/* Student Name - Better formatting for PDF export */}
+      {/* Student Name */}
       <div className="text-center mt-1 w-20">
         <div 
           className="text-xs font-semibold text-apple-700 leading-tight"
@@ -241,132 +202,205 @@ const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSel
         </div>
       </div>
 
-      {/* Enhanced Tooltip with all fields and better positioning */}
-      {showTooltip && !isDragging && (
-        <div ref={tooltipRef} className={getTooltipClasses()}>
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden">
-              {data.profile_picture_url ? (
-                <img
-                  src={data.profile_picture_url}
-                  alt={data.full_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-                  <span className="text-white font-bold">
-                    {data.full_name.charAt(0)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div>
-              <h3 className="font-semibold text-apple-900">{data.full_name}</h3>
-              <p className="text-sm text-apple-600">{data.pronoun}</p>
-            </div>
-          </div>
-          
-          <div className="space-y-3 text-sm max-h-80 overflow-y-auto">
-            <div>
-              <span className="font-medium text-apple-700">Email:</span>
-              <p className="text-apple-600 break-all">{data.email}</p>
-            </div>
-            
-            <div>
-              <span className="font-medium text-apple-700">Major:</span>
-              <p className="text-apple-600">{data.major}</p>
-            </div>
-            
-            {data.hobbies && data.hobbies.length > 0 && (
-              <div>
-                <span className="font-medium text-apple-700">Hobbies:</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {data.hobbies.map((hobby, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-apple-100 text-apple-700 text-xs rounded-full"
-                    >
-                      {hobby}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Favorite Movies/Shows Section */}
-            {data.favorite_movies && data.favorite_movies.length > 0 && (
-              <div>
-                <div className="flex items-center mb-2">
-                  <Film className="h-4 w-4 mr-1 text-apple-600" />
-                  <span className="font-medium text-apple-700">Favorite Movies/Shows:</span>
-                </div>
-                <div className="space-y-2">
-                  {data.favorite_movies.map((movie, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <div className="w-8 h-10 bg-apple-100 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {movie.poster ? (
-                          <img 
-                            src={movie.poster}
-                            alt={movie.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Film className="h-3 w-3 text-apple-400" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-apple-700 truncate">{movie.title}</p>
-                        <p className="text-xs text-apple-500">
-                          {movie.year} • {movie.type === 'movie' ? 'Movie' : 'TV'}
-                          {movie.rating && ` • ⭐ ${movie.rating}`}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {data.about_me && (
-              <div>
-                <span className="font-medium text-apple-700">About:</span>
-                <p className="text-apple-600 leading-relaxed">{data.about_me}</p>
-              </div>
-            )}
-            
-            {data.professor_notes && data.professor_notes.length > 0 && (
-              <div className="bg-yellow-50 rounded-lg p-3">
-                <span className="font-medium text-yellow-800">Professor Notes:</span>
-                <div className="mt-2 space-y-2">
-                  {data.professor_notes.map((note, index) => (
-                    <div key={index} className="bg-yellow-100 rounded p-2">
-                      <p className="text-yellow-700 text-xs leading-relaxed">
-                        {note.notes}
-                      </p>
-                      {note.created_at && (
-                        <p className="text-yellow-600 text-xs mt-1">
-                          {new Date(note.created_at).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-3 pt-3 border-t border-apple-200">
-            <div className="text-xs text-apple-500 text-center">
-              Double-click to remove • Drag to move
-            </div>
-          </div>
+      {/* Click indicator when compact mode is on */}
+      {compactMode && !isSelected && (
+        <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+          <Eye className="w-2 h-2 text-white" />
         </div>
       )}
     </div>
   );
 };
 
-// Saved Layouts Modal
+// Enhanced Student Profile Card Component with better positioning
+const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom, canvasOffset }) => {
+  const cardRef = useRef(null);
+  const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (cardRef.current && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const cardWidth = 320;
+      const cardHeight = 400;
+      
+      // Calculate student position on screen
+      const studentScreenX = canvasRect.left + canvasOffset.x + (studentPosition.x * zoom / 100);
+      const studentScreenY = canvasRect.top + canvasOffset.y + (studentPosition.y * zoom / 100);
+      
+      // Try to position card to the right of student
+      let newX = studentScreenX + 80; // 80px to the right of student
+      let newY = studentScreenY - 50; // Slightly above student
+      
+      // Check if card goes off screen horizontally
+      if (newX + cardWidth > window.innerWidth - 20) {
+        // Position to the left instead
+        newX = studentScreenX - cardWidth - 20;
+      }
+      
+      // Check if card goes off screen vertically
+      if (newY + cardHeight > window.innerHeight - 20) {
+        newY = window.innerHeight - cardHeight - 20;
+      }
+      if (newY < 20) {
+        newY = 20;
+      }
+      
+      // Ensure card doesn't go off screen horizontally (left side)
+      if (newX < 20) {
+        newX = 20;
+      }
+      
+      setCardPosition({ x: newX, y: newY });
+    }
+  }, [studentPosition, zoom, canvasOffset, canvasRef]);
+
+  return (
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-apple-200 w-80 max-h-96 overflow-hidden"
+      style={{
+        left: cardPosition.x,
+        top: cardPosition.y,
+      }}
+    >
+      {/* Header */}
+      <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-4 py-3 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white">
+              {student.profile_picture_url ? (
+                <img
+                  src={student.profile_picture_url}
+                  alt={student.full_name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-white flex items-center justify-center">
+                  <span className="text-primary-600 font-bold">
+                    {student.full_name.charAt(0)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{student.full_name}</h3>
+              <p className="text-xs text-primary-100">{student.pronoun}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:text-primary-100 transition-colors p-1 hover:bg-primary-400 rounded"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Content */}
+      <div className="p-4 space-y-3 text-sm max-h-80 overflow-y-auto">
+        <div>
+          <span className="font-medium text-apple-700">Email:</span>
+          <p className="text-apple-600 break-all text-xs">{student.email}</p>
+        </div>
+        
+        <div>
+          <span className="font-medium text-apple-700">Major:</span>
+          <p className="text-apple-600">{student.major}</p>
+        </div>
+        
+        {student.hobbies && student.hobbies.length > 0 && (
+          <div>
+            <span className="font-medium text-apple-700">Hobbies:</span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {student.hobbies.map((hobby, index) => (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-apple-100 text-apple-700 text-xs rounded-full"
+                >
+                  {hobby}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Favorite Movies/Shows Section */}
+        {student.favorite_movies && student.favorite_movies.length > 0 && (
+          <div>
+            <div className="flex items-center mb-2">
+              <Film className="h-3 w-3 mr-1 text-apple-600" />
+              <span className="font-medium text-apple-700">Movies/Shows:</span>
+            </div>
+            <div className="space-y-2">
+              {student.favorite_movies.slice(0, 2).map((movie, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <div className="w-6 h-8 bg-apple-100 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {movie.poster ? (
+                      <img 
+                        src={movie.poster}
+                        alt={movie.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Film className="h-2 w-2 text-apple-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-apple-700 truncate">{movie.title}</p>
+                    <p className="text-xs text-apple-500">
+                      {movie.year} • {movie.type === 'movie' ? 'Movie' : 'TV'}
+                      {movie.rating && ` • ⭐ ${movie.rating}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {student.favorite_movies.length > 2 && (
+                <p className="text-xs text-apple-500">+{student.favorite_movies.length - 2} more</p>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {student.about_me && (
+          <div>
+            <span className="font-medium text-apple-700">About:</span>
+            <p className="text-apple-600 leading-relaxed text-xs">{student.about_me}</p>
+          </div>
+        )}
+        
+        {student.professor_notes && student.professor_notes.length > 0 && (
+          <div className="bg-yellow-50 rounded-lg p-3">
+            <span className="font-medium text-yellow-800 text-xs">Professor Notes:</span>
+            <div className="mt-2 space-y-2">
+              {student.professor_notes.slice(0, 2).map((note, index) => (
+                <div key={index} className="bg-yellow-100 rounded p-2">
+                  <p className="text-yellow-700 text-xs leading-relaxed">
+                    {note.notes}
+                  </p>
+                </div>
+              ))}
+              {student.professor_notes.length > 2 && (
+                <p className="text-xs text-yellow-600">+{student.professor_notes.length - 2} more notes</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Footer */}
+      <div className="px-4 py-2 bg-apple-50 border-t border-apple-200">
+        <div className="text-xs text-apple-500 text-center">
+          Double-click on canvas to remove • Drag to move
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Saved Layouts Modal (keeping the same as before)
 const SavedLayoutsModal = ({ isOpen, onClose, savedLayouts, onLoadLayout, onDeleteLayout }) => {
   if (!isOpen) return null;
 
@@ -445,6 +479,8 @@ const RoomLayout = ({ students, user }) => {
   const [availableStudents, setAvailableStudents] = useState([]);
   const [zoom, setZoom] = useState(100);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [compactMode, setCompactMode] = useState(true);
+  const [selectedStudentData, setSelectedStudentData] = useState(null);
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -503,11 +539,12 @@ const RoomLayout = ({ students, user }) => {
       canvasOffset,
       layoutName,
       selectedMajor,
-      searchTerm
+      searchTerm,
+      compactMode
     };
     
     localStorage.setItem('roomLayout_autoSave', JSON.stringify(autoSaveData));
-  }, [placedStudents, furniture, zoom, canvasOffset, layoutName, selectedMajor, searchTerm, isLoading]);
+  }, [placedStudents, furniture, zoom, canvasOffset, layoutName, selectedMajor, searchTerm, compactMode, isLoading]);
 
   const loadAutoSavedState = () => {
     try {
@@ -521,6 +558,7 @@ const RoomLayout = ({ students, user }) => {
         setLayoutName(data.layoutName || '');
         setSelectedMajor(data.selectedMajor || '');
         setSearchTerm(data.searchTerm || '');
+        setCompactMode(data.compactMode !== undefined ? data.compactMode : true);
       }
     } catch (error) {
       console.error('Error loading auto-saved state:', error);
@@ -555,6 +593,8 @@ const RoomLayout = ({ students, user }) => {
       setCanvasOffset(layoutData.canvasOffset || { x: 0, y: 0 });
       setLayoutName(layout.layout_name);
       setCurrentLayoutId(layout.id);
+      setSelectedStudent(null);
+      setSelectedStudentData(null);
       toast.success(`Loaded layout: ${layout.layout_name}`);
     } catch (error) {
       console.error('Error loading layout:', error);
@@ -591,6 +631,36 @@ const RoomLayout = ({ students, user }) => {
           : item
       )
     );
+  };
+
+  // Handle student selection in compact mode
+  const handleStudentSelect = (studentId) => {
+    if (!compactMode) {
+      setSelectedStudent(studentId);
+      return;
+    }
+
+    if (selectedStudent === studentId) {
+      // Deselect if clicking the same student
+      setSelectedStudent(null);
+      setSelectedStudentData(null);
+    } else {
+      // Select new student
+      setSelectedStudent(studentId);
+      const student = placedStudents.find(s => s.id === studentId);
+      if (student) {
+        setSelectedStudentData(student.data);
+      }
+    }
+  };
+
+  // Close profile card when clicking outside
+  const handleCanvasClick = (e) => {
+    if (e.target === canvasRef.current) {
+      setSelectedStudent(null);
+      setSelectedStudentData(null);
+      setSelectedFurniture(null);
+    }
   };
 
   // Filter available students
@@ -660,11 +730,13 @@ const RoomLayout = ({ students, user }) => {
   const removeStudent = (studentId) => {
     setPlacedStudents(prev => prev.filter(student => student.id !== studentId));
     setSelectedStudent(null);
+    setSelectedStudentData(null);
   };
 
   const clearLayout = () => {
     setPlacedStudents([]);
     setSelectedStudent(null);
+    setSelectedStudentData(null);
     setSelectedFurniture(null);
     setCurrentLayoutId(null);
     setLayoutName('');
@@ -713,6 +785,7 @@ const RoomLayout = ({ students, user }) => {
   const handleCanvasMouseDown = (e) => {
     if (e.target === canvasRef.current) {
       setSelectedStudent(null);
+      setSelectedStudentData(null);
       setSelectedFurniture(null);
       setIsPanning(true);
       setPanStart({
@@ -722,116 +795,117 @@ const RoomLayout = ({ students, user }) => {
     }
   };
 
-  const handleCanvasMouseMove = useCallback((e) => {
-    if (!isPanning) return;
-    
-    setCanvasOffset({
-      x: e.clientX - panStart.x,
-      y: e.clientY - panStart.y
-    });
-  }, [isPanning, panStart]);
+const handleCanvasMouseMove = useCallback((e) => {
+   if (!isPanning) return;
+   
+   setCanvasOffset({
+     x: e.clientX - panStart.x,
+     y: e.clientY - panStart.y
+   });
+ }, [isPanning, panStart]);
 
-  const handleCanvasMouseUp = useCallback(() => {
-    setIsPanning(false);
-  }, []);
+ const handleCanvasMouseUp = useCallback(() => {
+   setIsPanning(false);
+ }, []);
 
-  useEffect(() => {
-    if (isPanning) {
-      document.addEventListener('mousemove', handleCanvasMouseMove);
-      document.addEventListener('mouseup', handleCanvasMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleCanvasMouseMove);
-        document.removeEventListener('mouseup', handleCanvasMouseUp);
-      };
-    }
-  }, [isPanning, handleCanvasMouseMove, handleCanvasMouseUp]);
+ useEffect(() => {
+   if (isPanning) {
+     document.addEventListener('mousemove', handleCanvasMouseMove);
+     document.addEventListener('mouseup', handleCanvasMouseUp);
+     return () => {
+       document.removeEventListener('mousemove', handleCanvasMouseMove);
+       document.removeEventListener('mouseup', handleCanvasMouseUp);
+     };
+   }
+ }, [isPanning, handleCanvasMouseMove, handleCanvasMouseUp]);
 
-  const saveLayout = async () => {
-    if (!layoutName.trim()) {
-      toast.error('Please enter a layout name');
-      return;
-    }
+ const saveLayout = async () => {
+   if (!layoutName.trim()) {
+     toast.error('Please enter a layout name');
+     return;
+   }
 
-    if (!user || !user.id) {
-      toast.error('User not authenticated');
-      return;
-    }
+   if (!user || !user.id) {
+     toast.error('User not authenticated');
+     return;
+   }
 
-    setIsSaving(true);
-    try {
-      const layoutData = {
-        students: placedStudents,
-        furniture: furniture,
-        zoom: zoom,
-        canvasOffset: canvasOffset
-      };
+   setIsSaving(true);
+   try {
+     const layoutData = {
+       students: placedStudents,
+       furniture: furniture,
+       zoom: zoom,
+       canvasOffset: canvasOffset,
+       compactMode: compactMode
+     };
 
-      let result;
-      if (currentLayoutId) {
-        result = await supabase
-          .from('room_layouts')
-          .update({
-            layout_name: layoutName,
-            layout_data: layoutData
-          })
-          .eq('id', currentLayoutId)
-          .select();
-      } else {
-        result = await supabase
-          .from('room_layouts')
-          .insert([{
-            professor_id: user.id,
-            layout_name: layoutName,
-            layout_data: layoutData
-          }])
-          .select();
-      }
+     let result;
+     if (currentLayoutId) {
+       result = await supabase
+         .from('room_layouts')
+         .update({
+           layout_name: layoutName,
+           layout_data: layoutData
+         })
+         .eq('id', currentLayoutId)
+         .select();
+     } else {
+       result = await supabase
+         .from('room_layouts')
+         .insert([{
+           professor_id: user.id,
+           layout_name: layoutName,
+           layout_data: layoutData
+         }])
+         .select();
+     }
 
-      const { data, error } = result;
+     const { data, error } = result;
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+     if (error) {
+       console.error('Supabase error:', error);
+       throw error;
+     }
 
-      if (data && data[0]) {
-        setCurrentLayoutId(data[0].id);
-      }
+     if (data && data[0]) {
+       setCurrentLayoutId(data[0].id);
+     }
 
-      await loadSavedLayouts();
-      toast.success(currentLayoutId ? 'Layout updated successfully!' : 'Layout saved successfully!');
-    } catch (error) {
-      console.error('Save layout error:', error);
-      toast.error(`Failed to save layout: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+     await loadSavedLayouts();
+     toast.success(currentLayoutId ? 'Layout updated successfully!' : 'Layout saved successfully!');
+   } catch (error) {
+     console.error('Save layout error:', error);
+     toast.error(`Failed to save layout: ${error.message}`);
+   } finally {
+     setIsSaving(false);
+   }
+ };
 
-  const exportToPDF = async () => {
-    try {
-      // Hide tooltips and interactive elements before export
-      const tooltips = document.querySelectorAll('.print\\:hidden');
-      tooltips.forEach(tooltip => {
-        tooltip.style.display = 'none';
-      });
+ const exportToPDF = async () => {
+   try {
+     // Hide profile cards and interactive elements before export
+     setSelectedStudent(null);
+     setSelectedStudentData(null);
+     
+     // Wait a moment for the UI to update
+     await new Promise(resolve => setTimeout(resolve, 100));
 
-      const element = canvasRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#f8fafc',
-        logging: false,
-        ignoreElements: (element) => {
-          return element.classList.contains('print:hidden') || 
-                 element.getAttribute('role') === 'tooltip';
-        },
-        onclone: (clonedDoc) => {
-         // Improve text rendering in the clone
+     const element = canvasRef.current;
+     const canvas = await html2canvas(element, {
+       scale: 3,
+       useCORS: true,
+       allowTaint: true,
+       backgroundColor: '#f8fafc',
+       logging: false,
+       ignoreElements: (element) => {
+         return element.classList.contains('print:hidden') || 
+                element.getAttribute('role') === 'tooltip' ||
+                element.classList.contains('fixed');
+       },
+       onclone: (clonedDoc) => {
          const textElements = clonedDoc.querySelectorAll('div, span');
          textElements.forEach(el => {
-           const computedStyle = window.getComputedStyle(el);
            el.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
            el.style.fontSmooth = 'always';
            el.style.webkitFontSmoothing = 'antialiased';
@@ -854,25 +928,21 @@ const RoomLayout = ({ students, user }) => {
        format: 'a4',
      });
 
-     // Calculate dimensions
      const pdfWidth = pdf.internal.pageSize.getWidth();
      const pdfHeight = pdf.internal.pageSize.getHeight();
      const imgWidth = pdfWidth;
      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-     // Add title
      pdf.setFontSize(16);
      pdf.setFont(undefined, 'bold');
      pdf.text(`Classroom Layout: ${layoutName || 'Untitled'}`, 15, 15);
      
-     // Add layout image
      const yOffset = 25;
      const maxImgHeight = pdfHeight - yOffset - 40;
      const finalImgHeight = Math.min(imgHeight, maxImgHeight);
      
      pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, finalImgHeight);
      
-     // Add student list on a new page if there are students
      if (placedStudents.length > 0) {
        pdf.addPage();
        pdf.setFontSize(14);
@@ -905,13 +975,7 @@ const RoomLayout = ({ students, user }) => {
        });
      }
 
-     // Save the PDF
      pdf.save(`classroom-layout-${layoutName?.replace(/[^a-z0-9]/gi, '_') || Date.now()}.pdf`);
-     
-     // Restore tooltips
-     tooltips.forEach(tooltip => {
-       tooltip.style.display = '';
-     });
      
      toast.success('Layout exported to PDF successfully!');
    } catch (error) {
@@ -1026,10 +1090,11 @@ const RoomLayout = ({ students, user }) => {
 
      {/* Main Canvas Area */}
      <div className="flex-1 flex flex-col">
-       {/* Toolbar */}
+       {/* Improved Toolbar with Better Organization */}
        <div className="bg-white shadow-sm border-b border-apple-200 p-4">
          <div className="flex items-center justify-between">
-           <div className="flex items-center space-x-4">
+           {/* Left Section - Layout Controls */}
+           <div className="flex items-center space-x-3">
              <input
                type="text"
                placeholder="Layout name..."
@@ -1038,27 +1103,48 @@ const RoomLayout = ({ students, user }) => {
                className="px-3 py-2 border border-apple-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent w-48"
              />
              
-             <div className="flex items-center space-x-2">
+             {/* Mode Toggle */}
+             <button
+               onClick={() => {
+                 setCompactMode(!compactMode);
+                 setSelectedStudent(null);
+                 setSelectedStudentData(null);
+               }}
+               className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                 compactMode 
+                   ? 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100' 
+                   : 'bg-apple-50 text-apple-700 border-apple-200 hover:bg-apple-100'
+               }`}
+             >
+               {compactMode ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+               <span>{compactMode ? 'Compact' : 'Tooltip'}</span>
+             </button>
+           </div>
+
+           {/* Right Section - Action Buttons */}
+           <div className="flex items-center space-x-2">
+             {/* Layout Actions Group */}
+             <div className="flex items-center space-x-2 bg-apple-50 rounded-lg p-1">
                <button
                  onClick={saveLayout}
                  disabled={isSaving}
-                 className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                 className="flex items-center space-x-2 px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                >
                  <Save className="h-4 w-4" />
-                 <span>{isSaving ? 'Saving...' : 'Save Layout'}</span>
+                 <span>{isSaving ? 'Saving...' : 'Save'}</span>
                </button>
                
                <button
                  onClick={() => setShowSavedLayouts(true)}
-                 className="flex items-center space-x-2 px-4 py-2 bg-apple-600 text-white rounded-lg hover:bg-apple-700"
+                 className="flex items-center space-x-2 px-3 py-2 bg-apple-600 text-white rounded-md hover:bg-apple-700 text-sm font-medium"
                >
                  <FolderOpen className="h-4 w-4" />
-                 <span>Load Layout</span>
+                 <span>Load</span>
                </button>
                
                <button
                  onClick={clearLayout}
-                 className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                 className="flex items-center space-x-2 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
                >
                  <RotateCcw className="h-4 w-4" />
                  <span>Clear</span>
@@ -1066,20 +1152,19 @@ const RoomLayout = ({ students, user }) => {
                
                <button
                  onClick={exportToPDF}
-                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                 className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                >
                  <Download className="h-4 w-4" />
-                 <span>Export PDF</span>
+                 <span>PDF</span>
                </button>
              </div>
-           </div>
 
-           <div className="flex items-center space-x-2">
-             {/* Zoom Controls */}
+             {/* View Controls Group */}
              <div className="flex items-center space-x-1 bg-apple-100 rounded-lg p-1">
                <button
                  onClick={handleZoomOut}
-                 className="p-2 text-apple-600 hover:bg-white rounded"
+                 className="p-2 text-apple-600 hover:bg-white hover:text-apple-800 rounded-md transition-colors"
+                 title="Zoom Out"
                >
                  <ZoomOut className="h-4 w-4" />
                </button>
@@ -1088,7 +1173,8 @@ const RoomLayout = ({ students, user }) => {
                </span>
                <button
                  onClick={handleZoomIn}
-                 className="p-2 text-apple-600 hover:bg-white rounded"
+                 className="p-2 text-apple-600 hover:bg-white hover:text-apple-800 rounded-md transition-colors"
+                 title="Zoom In"
                >
                  <ZoomIn className="h-4 w-4" />
                </button>
@@ -1096,7 +1182,7 @@ const RoomLayout = ({ students, user }) => {
              
              <button
                onClick={resetView}
-               className="p-2 text-apple-600 hover:bg-apple-100 rounded"
+               className="p-2 text-apple-600 hover:bg-apple-100 rounded-md transition-colors"
                title="Reset View"
              >
                <RotateCw className="h-4 w-4" />
@@ -1104,7 +1190,8 @@ const RoomLayout = ({ students, user }) => {
              
              <button
                onClick={() => setIsFullscreen(!isFullscreen)}
-               className="p-2 text-apple-600 hover:bg-apple-100 rounded"
+               className="p-2 text-apple-600 hover:bg-apple-100 rounded-md transition-colors"
+               title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
              >
                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
              </button>
@@ -1120,6 +1207,7 @@ const RoomLayout = ({ students, user }) => {
            onDrop={onDrop}
            onDragOver={onDragOver}
            onMouseDown={handleCanvasMouseDown}
+           onClick={handleCanvasClick}
            style={{
              transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
              backgroundImage: `
@@ -1141,6 +1229,7 @@ const RoomLayout = ({ students, user }) => {
                zoom={zoom}
                isSelected={selectedFurniture === item.id}
                onSelect={setSelectedFurniture}
+               isBlurred={compactMode && selectedStudent && selectedFurniture !== item.id}
              >
                <FurnitureComponent type={item.type} name={item.name} />
              </FurnitureItem>
@@ -1148,16 +1237,19 @@ const RoomLayout = ({ students, user }) => {
 
            {/* Render Students */}
            {placedStudents.map((student) => (
-             <StudentNode
-               key={student.id}
-               data={student.data}
-               position={student.position}
-               onMove={moveStudent}
-               onRemove={removeStudent}
-               zoom={zoom}
-               isSelected={selectedStudent === student.id}
-               onSelect={setSelectedStudent}
-             />
+             <div key={student.id} data-student-id={student.id}>
+               <StudentNode
+                 data={student.data}
+                 position={student.position}
+                 onMove={moveStudent}
+                 onRemove={removeStudent}
+                 zoom={zoom}
+                 isSelected={selectedStudent === student.id}
+                 onSelect={handleStudentSelect}
+                 isBlurred={compactMode && selectedStudent && selectedStudent !== student.id}
+                 compactMode={compactMode}
+               />
+             </div>
            ))}
 
            {/* Drop Zone Indicator */}
@@ -1165,6 +1257,21 @@ const RoomLayout = ({ students, user }) => {
              <div className="w-full h-full border-2 border-dashed border-apple-300 opacity-50" />
            </div>
          </div>
+
+         {/* Student Profile Card - Only in compact mode with improved positioning */}
+         {compactMode && selectedStudentData && selectedStudent && (
+           <StudentProfileCard
+             student={selectedStudentData}
+             onClose={() => {
+               setSelectedStudent(null);
+               setSelectedStudentData(null);
+             }}
+             canvasRef={canvasRef}
+             studentPosition={placedStudents.find(s => s.id === selectedStudent)?.position || { x: 0, y: 0 }}
+             zoom={zoom}
+             canvasOffset={canvasOffset}
+           />
+         )}
        </div>
 
        {/* Status Bar */}
@@ -1173,11 +1280,17 @@ const RoomLayout = ({ students, user }) => {
            <div className="flex items-center space-x-4">
              <span>Students placed: {placedStudents.length}</span>
              <span>Available: {availableStudents.length}</span>
-             {currentLayoutId && <span>Layout saved</span>}
+             <span>Mode: {compactMode ? 'Compact' : 'Tooltip'}</span>
+             {currentLayoutId && <span className="text-green-600">● Layout saved</span>}
            </div>
            <div className="flex items-center space-x-4">
              <span>Zoom: {zoom}%</span>
-             <span>Drag students from sidebar • Pan with mouse • Double-click to remove</span>
+             <span>
+               {compactMode 
+                 ? 'Click students to view profile • Drag to move • Double-click to remove'
+                 : 'Hover for profile • Drag to move • Double-click to remove'
+               }
+             </span>
            </div>
          </div>
        </div>

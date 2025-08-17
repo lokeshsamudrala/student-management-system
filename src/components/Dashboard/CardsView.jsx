@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, SortAsc } from 'lucide-react';
+import { Search, Filter, SortAsc, X } from 'lucide-react';
 import StudentCard from './StudentCard';
 import { supabase } from '../../lib/supabase';
 
@@ -13,7 +13,7 @@ const CardsView = ({ students, onStudentsChange, user }) => {
   const majors = ['Computer Science', 'Information Technology', 'Cybersecurity', 'DSBA'];
 
   useEffect(() => {
-    let filtered = students;
+    let filtered = [...students]; // Create a copy to avoid mutating original array
 
     // Search filter
     if (searchTerm) {
@@ -27,6 +27,9 @@ const CardsView = ({ students, onStudentsChange, user }) => {
           (student.hobbies && student.hobbies.some(hobby => 
             hobby.toLowerCase().includes(searchLower)
           )) ||
+          (student.favorite_movies && student.favorite_movies.some(movie =>
+            movie.title.toLowerCase().includes(searchLower)
+          )) ||
           (student.professor_notes && student.professor_notes.some(note => 
             note.notes.toLowerCase().includes(searchLower)
           ))
@@ -39,17 +42,25 @@ const CardsView = ({ students, onStudentsChange, user }) => {
       filtered = filtered.filter(student => student.major === selectedMajor);
     }
 
-    // Sort
+    // Sort - Fixed sorting logic
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'name':
           return a.full_name.localeCompare(b.full_name);
         case 'major':
-          return a.major.localeCompare(b.major);
+          // First sort by major, then by name within same major
+          const majorCompare = a.major.localeCompare(b.major);
+          if (majorCompare === 0) {
+            return a.full_name.localeCompare(b.full_name);
+          }
+          return majorCompare;
         case 'email':
           return a.email.localeCompare(b.email);
         case 'recent':
-          return new Date(b.created_at) - new Date(a.created_at);
+          // Sort by creation date, most recent first
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
+          return dateB - dateA; // Most recent first
         default:
           return 0;
       }
@@ -59,31 +70,64 @@ const CardsView = ({ students, onStudentsChange, user }) => {
   }, [students, searchTerm, selectedMajor, sortBy]);
 
   const handleAddNote = async (studentId, noteText) => {
-    const { error } = await supabase
-      .from('professor_notes')
-      .insert([{
-        student_id: studentId,
-        professor_id: user.id,
-        notes: noteText
-      }]);
+    try {
+      const { error } = await supabase
+        .from('professor_notes')
+        .insert([{
+          student_id: studentId,
+          professor_id: user.id,
+          notes: noteText
+        }]);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Refresh students data
-    onStudentsChange();
+      // Refresh students data
+      onStudentsChange();
+    } catch (error) {
+      console.error('Error adding note:', error);
+      throw error;
+    }
   };
 
   const handleDeleteStudent = async (studentId) => {
-    console.log(`Deleting student with ID: ${studentId}`);
-    const { error } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', studentId);
+    try {
+      console.log(`Deleting student with ID: ${studentId}`);
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', studentId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Refresh students data
-    onStudentsChange();
+      // Refresh students data
+      onStudentsChange();
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      throw error;
+    }
+  };
+
+  // Reset filters function
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedMajor('');
+    setSortBy('name');
+  };
+
+  // Get sort display name
+  const getSortDisplayName = (sortValue) => {
+    switch (sortValue) {
+      case 'name':
+        return 'Name';
+      case 'major':
+        return 'Major';
+      case 'email':
+        return 'Email';
+      case 'recent':
+        return 'Most Recent';
+      default:
+        return sortValue;
+    }
   };
 
   return (
@@ -96,11 +140,19 @@ const CardsView = ({ students, onStudentsChange, user }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-apple-400" />
             <input
               type="text"
-              placeholder="Search students by name, email, major, hobbies, about, or notes..."
+              placeholder="Search students by name, email, major, hobbies, movies, or notes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-apple-400 hover:text-apple-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Major Filter */}
@@ -132,22 +184,75 @@ const CardsView = ({ students, onStudentsChange, user }) => {
               <option value="recent">Most Recent</option>
             </select>
           </div>
+
+          {/* Reset Filters Button */}
+          {(searchTerm || selectedMajor || sortBy !== 'name') && (
+            <button
+              onClick={resetFilters}
+              className="px-4 py-3 bg-apple-100 text-apple-700 rounded-xl hover:bg-apple-200 transition-colors whitespace-nowrap flex items-center"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Reset
+            </button>
+          )}
         </div>
 
-        {/* Results Count */}
-        <div className="mt-4 text-sm text-apple-600">
-          Showing {filteredStudents.length} of {students.length} students
+        {/* Results Count and Active Filters */}
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="text-sm text-apple-600">
+            Showing <span className="font-medium">{filteredStudents.length}</span> of{' '}
+            <span className="font-medium">{students.length}</span> students
+          </div>
+          
+          {/* Active Filters Display */}
+          {(searchTerm || selectedMajor || sortBy !== 'name') && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {searchTerm && (
+                <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                  Search: "{searchTerm}"
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="ml-1 hover:text-blue-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {selectedMajor && (
+                <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                  Major: {selectedMajor}
+                  <button
+                    onClick={() => setSelectedMajor('')}
+                    className="ml-1 hover:text-green-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {sortBy !== 'name' && (
+                <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                  Sort: {getSortDisplayName(sortBy)}
+                  <button
+                    onClick={() => setSortBy('name')}
+                    className="ml-1 hover:text-purple-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Student Cards Grid - Fixed Height */}
+      {/* Student Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredStudents.map((student, index) => (
           <motion.div
             key={student.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
+            transition={{ delay: index * 0.05 }} // Reduced delay for better performance
             className="h-[420px]"
           >
             <StudentCard
@@ -167,12 +272,20 @@ const CardsView = ({ students, onStudentsChange, user }) => {
             <Search className="h-12 w-12 mx-auto" />
           </div>
           <h3 className="text-lg font-medium text-apple-900 mb-2">No students found</h3>
-          <p className="text-apple-600">
+          <p className="text-apple-600 mb-4">
             {searchTerm || selectedMajor 
               ? 'Try adjusting your search or filter criteria'
               : 'Students will appear here once they create their profiles'
             }
           </p>
+          {(searchTerm || selectedMajor || sortBy !== 'name') && (
+            <button
+              onClick={resetFilters}
+              className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+            >
+              Clear All Filters
+            </button>
+          )}
         </div>
       )}
     </div>

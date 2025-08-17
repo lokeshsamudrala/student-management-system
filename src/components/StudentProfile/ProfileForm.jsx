@@ -11,17 +11,22 @@ const ProfileForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
-  const [profilePictureError, setProfilePictureError] = useState('');
   const [hobbies, setHobbies] = useState([]);
   const [hobbyInput, setHobbyInput] = useState('');
-  // Add state for movies
-const [favoriteMovies, setFavoriteMovies] = useState([]);
+  const [favoriteMovies, setFavoriteMovies] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [submittedStudentId, setSubmittedStudentId] = useState(null);
   const [submittedStudentData, setSubmittedStudentData] = useState(null);
+  
+  // Validation error states
+  const [hasSubmissionAttempt, setHasSubmissionAttempt] = useState(false);
+  const [profilePictureError, setProfilePictureError] = useState('');
+  const [hobbiesError, setHobbiesError] = useState('');
+  const [moviesError, setMoviesError] = useState('');
+  
   const fileInputRef = useRef(null);
   
-  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, formState: { errors }, reset, trigger } = useForm();
 
   const majors = [
     'Computer Science',
@@ -36,6 +41,31 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
     'They/Them',
     'Other'
   ];
+
+  // Validate custom fields
+  const validateCustomFields = () => {
+    let hasError = false;
+
+    // Validate profile picture
+    if (!profilePicture) {
+      setProfilePictureError('Profile picture is required');
+      hasError = true;
+    }
+
+    // Validate hobbies
+    if (hobbies.length === 0) {
+      setHobbiesError('At least one hobby is required');
+      hasError = true;
+    }
+
+    // Validate movies
+    if (favoriteMovies.length === 0) {
+      setMoviesError('Please select at least one favorite movie or TV show');
+      hasError = true;
+    }
+
+    return !hasError;
+  };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -54,13 +84,27 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
       e.preventDefault();
       if (!hobbies.includes(hobbyInput.trim())) {
         setHobbies([...hobbies, hobbyInput.trim()]);
+        setHobbiesError(''); // Clear error when hobby is added
       }
       setHobbyInput('');
     }
   };
 
   const removeHobby = (hobbyToRemove) => {
-    setHobbies(hobbies.filter(hobby => hobby !== hobbyToRemove));
+    const newHobbies = hobbies.filter(hobby => hobby !== hobbyToRemove);
+    setHobbies(newHobbies);
+    // Show error if removing last hobby after submission attempt
+    if (newHobbies.length === 0 && hasSubmissionAttempt) {
+      setHobbiesError('At least one hobby is required');
+    }
+  };
+
+  const handleMoviesChange = (movies) => {
+    setFavoriteMovies(movies);
+    // Clear error when movies are selected
+    if (movies.length > 0) {
+      setMoviesError('');
+    }
   };
 
   const uploadImage = async (file) => {
@@ -81,20 +125,41 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
     return publicUrl;
   };
 
+  // Handle form submission with custom validation
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Set submission attempt to true
+    setHasSubmissionAttempt(true);
+    
+    // Validate custom fields first
+    const customFieldsValid = validateCustomFields();
+    
+    // Trigger react-hook-form validation
+    const formValid = await trigger();
+    
+    // If either validation fails, don't proceed
+    if (!customFieldsValid || !formValid) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Get form data manually since we're not using handleSubmit
+    const formElement = e.target;
+    const formData = new FormData(formElement);
+    const data = {
+      fullName: formData.get('fullName'),
+      pronoun: formData.get('pronoun'),
+      email: formData.get('email'),
+      major: formData.get('major'),
+      aboutMe: formData.get('aboutMe')
+    };
+
+    // Proceed with submission
+    await onSubmit(data);
+  };
+
   const onSubmit = async (data) => {
-    // Validate hobbies manually
-    if (hobbies.length === 0) {
-      toast.error('At least one hobby is required');
-      return;
-    }
-
-    // Validate profile picture before submission
-    if (!profilePicture) {
-      setProfilePictureError('Profile picture is required');
-      toast.error('Please upload a profile picture');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       let profilePictureUrl = null;
@@ -111,7 +176,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
         profile_picture_url: profilePictureUrl,
         hobbies: hobbies,
         about_me: data.aboutMe || null,
-        favorite_movies: favoriteMovies // Store favorite movies
+        favorite_movies: favoriteMovies
       };
 
       const { data: insertedData, error } = await supabase
@@ -134,14 +199,18 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
   };
 
   const handleCreateAnother = () => {
-    // Reset all form data
+    // Reset all form data and error states
     setIsSubmitted(false);
     setProfilePicture(null);
     setProfilePictureError('');
     setHobbies([]);
     setHobbyInput('');
+    setHobbiesError('');
+    setFavoriteMovies([]);
+    setMoviesError('');
     setSubmittedStudentId(null);
     setSubmittedStudentData(null);
+    setHasSubmissionAttempt(false);
     reset();
     window.scrollTo(0, 0);
   };
@@ -226,6 +295,21 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                       </div>
                     </div>
                   )}
+                  {submittedStudentData?.favorite_movies && submittedStudentData.favorite_movies.length > 0 && (
+                    <div>
+                      <span className="font-medium">Favorite Movies/Shows:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {submittedStudentData.favorite_movies.map((movie, index) => (
+                          <span
+                            key={index}
+                            className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
+                          >
+                            {movie.title}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {submittedStudentData?.about_me && (
                     <p><span className="font-medium">About:</span> {submittedStudentData.about_me}</p>
                   )}
@@ -272,7 +356,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
     );
   }
 
-  // ... rest of the form JSX remains the same as before
+  // Main form JSX
   return (
     <div className="min-h-screen bg-gradient-to-br from-apple-50 to-primary-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -286,8 +370,9 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
             <p className="text-primary-100 mt-2">Share your details with your professor</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
-            {/* Profile Picture - Now Mandatory */}
+          {/* Updated form with custom submit handler */}
+          <form onSubmit={handleFormSubmit} className="p-8 space-y-6">
+            {/* Profile Picture */}
             <div className="text-center">
               <div className="relative inline-block">
                 <div className={`w-32 h-32 rounded-full bg-apple-100 border-4 ${
@@ -302,7 +387,10 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                   ) : (
                     <div className="text-center">
                       <Camera className="h-12 w-12 text-apple-400 mx-auto" />
-                      <span className="text-xs text-red-500 mt-1 block">Required</span>
+                      {/* Only show "Required" text if there's an error */}
+                      {profilePictureError && (
+                        <span className="text-xs text-red-500 mt-1 block">Required</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -336,6 +424,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                 </label>
                 <input
                   {...register('fullName', { required: 'Full name is required' })}
+                  name="fullName"
                   className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   placeholder="Enter your full name"
                 />
@@ -350,6 +439,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                 </label>
                 <select
                   {...register('pronoun', { required: 'Pronoun is required' })}
+                  name="pronoun"
                   className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">Select pronoun</option>
@@ -364,23 +454,27 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
 
               <div>
                 <label className="block text-sm font-medium text-apple-700 mb-2">
-                  Email Address *
+                  UNCC Email Address *
                 </label>
                 <input
                   {...register('email', { 
-                    required: 'Email is required',
+                    required: 'UNCC email is required',
                     pattern: {
-                      value: /^\S+@\S+$/i,
-                      message: 'Invalid email address'
+                      value: /^[^\s@]+@(uncc\.edu|charlotte\.edu)$/i,
+                      message: 'Email must end with @uncc.edu or @charlotte.edu'
                     }
                   })}
+                  name="email"
                   type="email"
                   className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="your.email@example.com"
+                  placeholder="your.email@uncc.edu"
                 />
                 {errors.email && (
                   <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
                 )}
+                <p className="text-xs text-apple-500 mt-1">
+                  Must be a UNCC email address (@uncc.edu or @charlotte.edu)
+                </p>
               </div>
 
               <div>
@@ -389,6 +483,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                 </label>
                 <select
                   {...register('major', { required: 'Major is required' })}
+                  name="major"
                   className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">Select your major</option>
@@ -402,7 +497,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
               </div>
             </div>
 
-            {/* Hobbies */}
+            {/* Hobbies with proper validation */}
             <div>
               <label className="block text-sm font-medium text-apple-700 mb-2">
                 Hobbies & Interests *
@@ -417,6 +512,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                     // Auto-add hobby when user clicks away
                     if (hobbyInput.trim() && !hobbies.includes(hobbyInput.trim())) {
                       setHobbies([...hobbies, hobbyInput.trim()]);
+                      setHobbiesError(''); // Clear error when hobby is added
                       setHobbyInput('');
                     }
                   }}
@@ -429,6 +525,7 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                     onClick={() => {
                       if (hobbyInput.trim() && !hobbies.includes(hobbyInput.trim())) {
                         setHobbies([...hobbies, hobbyInput.trim()]);
+                        setHobbiesError(''); // Clear error when hobby is added
                         setHobbyInput('');
                       }
                     }}
@@ -439,13 +536,20 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
                 )}
               </div>
               
-              {/* Better instruction text */}
-              <p className="text-xs text-apple-500 mt-1">
-                {hobbies.length === 0 
-                  ? "Add at least one hobby. Press Enter or click 'Add' after typing each hobby."
-                  : `${hobbies.length} ${hobbies.length === 1 ? 'hobby' : 'hobbies'} added. You can add more!`
-                }
-              </p>
+              {/* Show error message for hobbies */}
+              {hobbiesError && (
+                <p className="text-red-500 text-sm mt-1">{hobbiesError}</p>
+              )}
+              
+              {/* Show helper text only if no error */}
+              {!hobbiesError && (
+                <p className="text-xs text-apple-500 mt-1">
+                  {hobbies.length === 0 
+                    ? "Add at least one hobby. Press Enter or click 'Add' after typing each hobby."
+                    : `${hobbies.length} ${hobbies.length === 1 ? 'hobby' : 'hobbies'} added. You can add more!`
+                  }
+                </p>
+              )}
 
               <div className="flex flex-wrap gap-2 mt-3">
                 {hobbies.map(hobby => (
@@ -466,16 +570,23 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
               </div>
             </div>
 
-              <div>
-                <label className="block text-sm font-medium text-apple-700 mb-2">
-                  Favorite Movies or TV Shows
-                </label>
-                <MovieSearch
-                  selectedMovies={favoriteMovies}
-                  onMoviesChange={setFavoriteMovies}
-                  maxSelections={3}
-                />
-              </div> 
+            {/* Movies with proper validation */}
+            <div>
+              <label className="block text-sm font-medium text-apple-700 mb-2">
+                Favorite Movies or TV Shows *
+              </label>
+              <MovieSearch
+                selectedMovies={favoriteMovies}
+                onMoviesChange={handleMoviesChange}
+                maxSelections={3}
+              />
+              
+              {/* Show error message for movies */}
+              {moviesError && (
+                <p className="text-red-500 text-sm mt-1">{moviesError}</p>
+              )}
+            </div>
+
             {/* About Me */}
             <div>
               <label className="block text-sm font-medium text-apple-700 mb-2">
@@ -483,13 +594,14 @@ const [favoriteMovies, setFavoriteMovies] = useState([]);
               </label>
               <textarea
                 {...register('aboutMe', { required: 'Tell us something about yourself' })}
+                name="aboutMe"
                 rows={4}
                 className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                 placeholder="Tell us something about yourself..."
               />
               {errors.aboutMe && (
-                  <p className="text-red-500 text-sm mt-1">{errors.aboutMe.message}</p>
-                )}
+                <p className="text-red-500 text-sm mt-1">{errors.aboutMe.message}</p>
+              )}
             </div>
 
             {/* Submit Button */}

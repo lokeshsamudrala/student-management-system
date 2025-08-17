@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import EditProfile from './EditProfile';
+import MovieSearch from '../MovieSearch/MovieSearch';
 
 const ProfileForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,6 +14,8 @@ const ProfileForm = () => {
   const [profilePictureError, setProfilePictureError] = useState('');
   const [hobbies, setHobbies] = useState([]);
   const [hobbyInput, setHobbyInput] = useState('');
+  // Add state for movies
+const [favoriteMovies, setFavoriteMovies] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [submittedStudentId, setSubmittedStudentId] = useState(null);
   const [submittedStudentData, setSubmittedStudentData] = useState(null);
@@ -107,7 +110,8 @@ const ProfileForm = () => {
         major: data.major,
         profile_picture_url: profilePictureUrl,
         hobbies: hobbies,
-        about_me: data.aboutMe || null
+        about_me: data.aboutMe || null,
+        favorite_movies: favoriteMovies // Store favorite movies
       };
 
       const { data: insertedData, error } = await supabase
@@ -462,6 +466,16 @@ const ProfileForm = () => {
               </div>
             </div>
 
+              <div>
+                <label className="block text-sm font-medium text-apple-700 mb-2">
+                  Favorite Movies or TV Shows
+                </label>
+                <MovieSearch
+                  selectedMovies={favoriteMovies}
+                  onMoviesChange={setFavoriteMovies}
+                  maxSelections={3}
+                />
+              </div> 
             {/* About Me */}
             <div>
               <label className="block text-sm font-medium text-apple-700 mb-2">

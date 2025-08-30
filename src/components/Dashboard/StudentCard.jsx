@@ -11,6 +11,7 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editNoteText, setEditNoteText] = useState('');
   const [isUpdatingNote, setIsUpdatingNote] = useState(false);
+  const [showEnlargedImage, setShowEnlargedImage] = useState(false);
 
   const handleAddNote = async () => {
     if (!note.trim()) return;
@@ -102,7 +103,11 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
       {/* Header with Profile Picture */}
       <div className="relative h-32 bg-gradient-to-br from-primary-500 to-primary-600 flex-shrink-0">
         <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
-          <div className="w-16 h-16 rounded-full border-4 border-white shadow-apple overflow-hidden bg-white">
+          <div 
+            className="w-16 h-16 rounded-full border-4 border-white shadow-apple overflow-hidden bg-white cursor-pointer transition-transform duration-200 hover:scale-110"
+            onMouseEnter={() => student.profile_picture_url && setShowEnlargedImage(true)}
+            onMouseLeave={() => setShowEnlargedImage(false)}
+          >
             {student.profile_picture_url ? (
               <img
                 src={student.profile_picture_url}
@@ -348,6 +353,30 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
           </div>
         )}
       </div>
+
+      {/* Enlarged Profile Picture Overlay */}
+      {showEnlargedImage && student.profile_picture_url && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.3 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.3 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="relative pointer-events-auto"
+            onMouseEnter={() => setShowEnlargedImage(true)}
+            onMouseLeave={() => setShowEnlargedImage(false)}
+          >
+            {/* Enlarged image container */}
+            <div className="relative w-56 h-56 rounded-full border-4 border-white shadow-apple-xl overflow-hidden bg-white">
+              <img
+                src={student.profile_picture_url}
+                alt={student.full_name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };

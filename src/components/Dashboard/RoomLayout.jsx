@@ -17,7 +17,11 @@ import {
   Film,
   X,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail,
+  GraduationCap,
+  Heart,
+  User
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -75,7 +79,7 @@ const FurnitureItem = ({ id, type, position, onMove, zoom, isSelected, onSelect,
         left: position.x,
         top: position.y,
         transform: `scale(${scale})`,
-        transformOrigin: 'center center'
+        transformOrigin: 'top left'
       }}
       onMouseDown={handleMouseDown}
     >
@@ -158,7 +162,7 @@ const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSel
         left: position.x,
         top: position.y,
         transform: `scale(${scale})`,
-        transformOrigin: 'center center'
+        transformOrigin: 'top left'
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -216,12 +220,13 @@ const StudentNode = ({ data, position, onMove, onRemove, zoom, isSelected, onSel
 const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom, canvasOffset }) => {
   const cardRef = useRef(null);
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
+  const [showEnlargedImage, setShowEnlargedImage] = useState(false);
 
   useEffect(() => {
     if (cardRef.current && canvasRef.current) {
       const canvasRect = canvasRef.current.getBoundingClientRect();
-      const cardWidth = 320;
-      const cardHeight = 400;
+      const cardWidth = 288; // w-72 = 288px
+      const cardHeight = 400; // Updated to match new maxHeight
       
       // Calculate student position on screen
       const studentScreenX = canvasRect.left + canvasOffset.x + (studentPosition.x * zoom / 100);
@@ -260,61 +265,86 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
       initial={{ opacity: 0, scale: 0.9, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-apple-200 w-80 max-h-96 overflow-hidden"
+      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-apple-200 w-72 overflow-hidden flex flex-col"
       style={{
         left: cardPosition.x,
         top: cardPosition.y,
+        maxHeight: '400px', // Increased to accommodate more content
+        minHeight: '350px', // Ensure consistent minimum height
       }}
     >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-4 py-3 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white">
-              {student.profile_picture_url ? (
-                <img
-                  src={student.profile_picture_url}
-                  alt={student.full_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-white flex items-center justify-center">
-                  <span className="text-primary-600 font-bold">
-                    {student.full_name.charAt(0)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm">{student.full_name}</h3>
-              <p className="text-xs text-primary-100">{student.pronoun}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-white hover:text-primary-100 transition-colors p-1 hover:bg-primary-400 rounded"
+      {/* Compact Header with Large Profile Picture */}
+      <div className="relative px-4 pt-3 pb-2 bg-gradient-to-br from-primary-500 to-primary-600 text-center">
+        {/* Close button positioned absolutely */}
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 z-10 text-white hover:text-primary-100 transition-colors p-1 hover:bg-primary-400 rounded"
+        >
+          <X className="h-3 w-3" />
+        </button>
+        
+        {/* Large Profile Picture - Centered with Hover */}
+        <div className="flex justify-center mb-2">
+          <div 
+            className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white cursor-pointer transition-transform duration-200 hover:scale-110"
+            onMouseEnter={() => student.profile_picture_url && setShowEnlargedImage(true)}
+            onMouseLeave={() => setShowEnlargedImage(false)}
           >
-            <X className="h-4 w-4" />
-          </button>
+            {student.profile_picture_url ? (
+              <img
+                src={student.profile_picture_url}
+                alt={student.full_name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                <span className="text-white font-bold text-xl">
+                  {student.full_name.charAt(0)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Name and Pronoun - In header */}
+        <div className="text-center">
+          <h3 className="text-base font-semibold text-white">
+            {student.full_name}
+          </h3>
+          <p className="text-xs text-primary-100">{student.pronoun}</p>
         </div>
       </div>
       
-      {/* Content */}
-      <div className="p-4 space-y-3 text-sm max-h-80 overflow-y-auto">
-        <div>
-          <span className="font-medium text-apple-700">Email:</span>
-          <p className="text-apple-600 break-all text-xs">{student.email}</p>
+      {/* Content - Scrollable with all student data */}
+      <div 
+        className="px-4 pt-3 space-y-3 text-sm flex-1 overflow-y-auto"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#9CA3AF #F3F4F6',
+          maxHeight: '200px', // Increased height for better content visibility
+          paddingBottom: '16px', // Ensure bottom content is visible
+        }}
+      >
+        {/* Email */}
+        <div className="flex items-center text-sm text-apple-600">
+          <Mail className="h-4 w-4 mr-2 text-apple-400" />
+          <span className="truncate">{student.email}</span>
         </div>
         
-        <div>
-          <span className="font-medium text-apple-700">Major:</span>
-          <p className="text-apple-600">{student.major}</p>
+        {/* Major */}
+        <div className="flex items-center text-sm text-apple-600">
+          <GraduationCap className="h-4 w-4 mr-2 text-apple-400" />
+          <span>{student.major}</span>
         </div>
-        
+
+        {/* Hobbies */}
         {student.hobbies && student.hobbies.length > 0 && (
           <div>
-            <span className="font-medium text-apple-700">Hobbies:</span>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex items-center text-sm text-apple-600 mb-2">
+              <Heart className="h-4 w-4 mr-2 text-apple-400" />
+              <span className="font-medium">Hobbies</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
               {student.hobbies.map((hobby, index) => (
                 <span
                   key={index}
@@ -327,15 +357,15 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
           </div>
         )}
 
-        {/* Favorite Movies/Shows Section */}
+        {/* Favorite Movies/Shows */}
         {student.favorite_movies && student.favorite_movies.length > 0 && (
           <div>
-            <div className="flex items-center mb-2">
-              <Film className="h-3 w-3 mr-1 text-apple-600" />
-              <span className="font-medium text-apple-700">Movies/Shows:</span>
+            <div className="flex items-center text-sm text-apple-600 mb-2">
+              <Film className="h-4 w-4 mr-2 text-apple-400" />
+              <span className="font-medium">Movies/Shows</span>
             </div>
             <div className="space-y-2">
-              {student.favorite_movies.slice(0, 2).map((movie, index) => (
+              {student.favorite_movies.map((movie, index) => (
                 <div key={index} className="flex items-center space-x-2">
                   <div className="w-6 h-8 bg-apple-100 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
                     {movie.poster ? (
@@ -345,49 +375,53 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Film className="h-2 w-2 text-apple-400" />
+                      <Film className="h-3 w-3 text-apple-400" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-apple-700 truncate">{movie.title}</p>
-                    <p className="text-xs text-apple-500">
+                    <p className="text-xs text-apple-500 truncate">
                       {movie.year} • {movie.type === 'movie' ? 'Movie' : 'TV'}
                       {movie.rating && ` • ⭐ ${movie.rating}`}
                     </p>
                   </div>
                 </div>
               ))}
-              {student.favorite_movies.length > 2 && (
-                <p className="text-xs text-apple-500">+{student.favorite_movies.length - 2} more</p>
-              )}
             </div>
           </div>
         )}
-        
+
+        {/* About Me */}
         {student.about_me && (
           <div>
-            <span className="font-medium text-apple-700">About:</span>
-            <p className="text-apple-600 leading-relaxed text-xs">{student.about_me}</p>
+            <div className="flex items-center text-sm text-apple-600 mb-2">
+              <User className="h-4 w-4 mr-2 text-apple-400" />
+              <span className="font-medium">About Me</span>
+            </div>
+            <p className="text-sm text-apple-600 leading-relaxed">
+              {student.about_me}
+            </p>
           </div>
         )}
         
+        {/* Professor Notes */}
         {student.professor_notes && student.professor_notes.length > 0 && (
-          <div className="bg-yellow-50 rounded-lg p-3">
-            <span className="font-medium text-yellow-800 text-xs">Professor Notes:</span>
-            <div className="mt-2 space-y-2">
-              {student.professor_notes.slice(0, 2).map((note, index) => (
-                <div key={index} className="bg-yellow-100 rounded p-2">
-                  <p className="text-yellow-700 text-xs leading-relaxed">
-                    {note.notes}
+          <div className="bg-yellow-50 rounded-lg p-3 mb-4">
+            <h4 className="text-sm font-medium text-yellow-800 mb-2">Professor Notes</h4>
+            <div className="space-y-2">
+              {student.professor_notes.map((noteObj, index) => (
+                <div key={noteObj.id || index} className="bg-yellow-100 rounded p-2">
+                  <p className="text-sm text-yellow-700 leading-relaxed">
+                    {noteObj.notes}
                   </p>
                 </div>
               ))}
-              {student.professor_notes.length > 2 && (
-                <p className="text-xs text-yellow-600">+{student.professor_notes.length - 2} more notes</p>
-              )}
             </div>
           </div>
         )}
+        
+        {/* Extra bottom spacing to ensure last content is visible */}
+        <div className="h-4"></div>
       </div>
       
       {/* Footer */}
@@ -396,6 +430,30 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
           Double-click on canvas to remove • Drag to move
         </div>
       </div>
+
+      {/* Enlarged Profile Picture Overlay */}
+      {showEnlargedImage && student.profile_picture_url && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.3 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.3 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="relative pointer-events-auto"
+            onMouseEnter={() => setShowEnlargedImage(true)}
+            onMouseLeave={() => setShowEnlargedImage(false)}
+          >
+            {/* Enlarged image container */}
+            <div className="relative w-56 h-56 rounded-full border-4 border-white shadow-2xl overflow-hidden bg-white">
+              <img
+                src={student.profile_picture_url}
+                alt={student.full_name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -492,22 +550,10 @@ const RoomLayout = ({ students, user }) => {
   // Furniture state
   const [furniture, setFurniture] = useState([
     {
-      id: 'table1',
-      type: 'table',
-      position: { x: 100, y: 150 },
-      name: 'Table 1'
-    },
-    {
-      id: 'table2',
-      type: 'table', 
-      position: { x: 500, y: 150 },
-      name: 'Table 2'
-    },
-    {
-      id: 'teacherDesk',
-      type: 'teacherDesk',
+      id: 'podium',
+      type: 'podium',
       position: { x: 300, y: 450 },
-      name: "Teacher's Desk"
+      name: 'Podium'
     },
     {
       id: 'whiteboard',
@@ -701,11 +747,22 @@ const RoomLayout = ({ students, user }) => {
   const onDrop = (event) => {
     event.preventDefault();
     const studentData = JSON.parse(event.dataTransfer.getData('text/plain'));
-    const rect = canvasRef.current.getBoundingClientRect();
     
+    // Get the canvas container (the parent div that doesn't have transforms)
+    const canvasContainer = canvasRef.current.parentElement;
+    const containerRect = canvasContainer.getBoundingClientRect();
+    
+    // Get mouse position relative to the canvas container
+    const mouseX = event.clientX - containerRect.left;
+    const mouseY = event.clientY - containerRect.top;
+    
+    // The position should be relative to the canvas container, accounting for the canvas offset
+    // Since students are positioned with left/top relative to the transformed canvas,
+    // we need to subtract the canvas offset to get the correct position
+    // With transform-origin: top left, we don't need as much offset for centering
     const position = {
-      x: (event.clientX - rect.left - canvasOffset.x) / (zoom / 100) - 40,
-      y: (event.clientY - rect.top - canvasOffset.y) / (zoom / 100) - 40
+      x: mouseX - canvasOffset.x - 32, // Center the student (32px is half of 64px student width)
+      y: mouseY - canvasOffset.y - 32  // Center the student (32px is half of 64px student height)
     };
 
     const newPlacedStudent = {
@@ -743,22 +800,10 @@ const RoomLayout = ({ students, user }) => {
     // Reset furniture to default positions
     setFurniture([
       {
-        id: 'table1',
-        type: 'table',
-        position: { x: 100, y: 150 },
-        name: 'Table 1'
-      },
-      {
-        id: 'table2',
-        type: 'table', 
-        position: { x: 500, y: 150 },
-        name: 'Table 2'
-      },
-      {
-        id: 'teacherDesk',
-        type: 'teacherDesk',
+        id: 'podium',
+        type: 'podium',
         position: { x: 300, y: 450 },
-        name: "Teacher's Desk"
+        name: 'Podium'
       },
       {
         id: 'whiteboard',
@@ -1201,23 +1246,23 @@ const handleCanvasMouseMove = useCallback((e) => {
 
        {/* Canvas */}
        <div className="flex-1 overflow-hidden relative">
-         <div
-           ref={canvasRef}
-           className="w-full h-full bg-apple-50 relative cursor-grab active:cursor-grabbing"
-           onDrop={onDrop}
-           onDragOver={onDragOver}
-           onMouseDown={handleCanvasMouseDown}
-           onClick={handleCanvasClick}
-           style={{
-             transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
-             backgroundImage: `
-               radial-gradient(circle, #e2e8f0 1px, transparent 1px),
-               radial-gradient(circle, #e2e8f0 1px, transparent 1px)
-             `,
-             backgroundSize: `${20 * (zoom / 100)}px ${20 * (zoom / 100)}px`,
-             backgroundPosition: '0 0, 10px 10px'
-           }}
-         >
+                 <div
+          ref={canvasRef}
+          className="w-full h-full bg-apple-50 relative cursor-grab active:cursor-grabbing"
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onMouseDown={handleCanvasMouseDown}
+          onClick={handleCanvasClick}
+          style={{
+            transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
+            backgroundImage: `
+              radial-gradient(circle, #e2e8f0 1px, transparent 1px),
+              radial-gradient(circle, #e2e8f0 1px, transparent 1px)
+            `,
+            backgroundSize: `${20 * (zoom / 100)}px ${20 * (zoom / 100)}px`,
+            backgroundPosition: '0 0, 10px 10px'
+          }}
+        >
            {/* Render Furniture */}
            {furniture.map((item) => (
              <FurnitureItem
@@ -1312,32 +1357,32 @@ const handleCanvasMouseMove = useCallback((e) => {
 const FurnitureComponent = ({ type, name }) => {
  const baseClasses = "border-2 border-apple-300 bg-white shadow-lg rounded-lg flex items-center justify-center text-apple-700 font-medium text-sm select-none";
  
- switch (type) {
-   case 'table':
-     return (
-       <div className={`${baseClasses} w-32 h-20 bg-amber-50 border-amber-300`}>
-         {name}
-       </div>
-     );
-   case 'teacherDesk':
-     return (
-       <div className={`${baseClasses} w-40 h-24 bg-blue-50 border-blue-300`}>
-         {name}
-       </div>
-     );
-   case 'whiteboard':
-     return (
-       <div className={`${baseClasses} w-48 h-16 bg-gray-100 border-gray-400`}>
-         {name}
-       </div>
-     );
-   default:
-     return (
-       <div className={`${baseClasses} w-24 h-24`}>
-         {name}
-       </div>
-     );
- }
+   switch (type) {
+    case 'table':
+      return (
+        <div className={`${baseClasses} w-32 h-20 bg-amber-50 border-amber-300`}>
+          {name}
+        </div>
+      );
+    case 'podium':
+      return (
+        <div className={`${baseClasses} w-24 h-20 bg-purple-50 border-purple-300`}>
+          {name}
+        </div>
+      );
+    case 'whiteboard':
+      return (
+        <div className={`${baseClasses} w-48 h-16 bg-gray-100 border-gray-400`}>
+          {name}
+        </div>
+      );
+    default:
+      return (
+        <div className={`${baseClasses} w-24 h-24`}>
+          {name}
+        </div>
+      );
+  }
 };
 
 export default RoomLayout;

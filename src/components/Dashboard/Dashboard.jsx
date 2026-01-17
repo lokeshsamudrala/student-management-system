@@ -26,9 +26,10 @@ const Dashboard = ({ user }) => {
     for (const student of students) {
       if (student.favorite_movies && Array.isArray(student.favorite_movies)) {
         for (const movie of student.favorite_movies) {
-          const title = movie.title;
+          // Use title + year as unique key to differentiate same titles from different years
+          const uniqueKey = `${movie.title}||${movie.year || 'unknown'}`;
           const movieData = {
-            title,
+            title: movie.title,
             poster: movie.poster,
             rating: movie.rating,
             year: movie.year,
@@ -36,17 +37,17 @@ const Dashboard = ({ user }) => {
           };
 
           if (movie.type === 'movie') {
-            if (movieCounts.has(title)) {
-              movieCounts.get(title).count++;
+            if (movieCounts.has(uniqueKey)) {
+              movieCounts.get(uniqueKey).count++;
             } else {
-              movieCounts.set(title, { ...movieData, count: 1 });
+              movieCounts.set(uniqueKey, { ...movieData, count: 1 });
             }
             totalMovies++;
           } else if (movie.type === 'tv') {
-            if (tvCounts.has(title)) {
-              tvCounts.get(title).count++;
+            if (tvCounts.has(uniqueKey)) {
+              tvCounts.get(uniqueKey).count++;
             } else {
-              tvCounts.set(title, { ...movieData, count: 1 });
+              tvCounts.set(uniqueKey, { ...movieData, count: 1 });
             }
             totalTV++;
           }
@@ -334,7 +335,7 @@ const EnhancedMovieStatsCard = React.memo(({ title, icon: Icon, iconColor, barCo
       {items.length > 0 ? (
         <div className="space-y-4 max-h-96 overflow-y-auto">
           {items.map((item, index) => (
-            <div key={`${item.title}-${index}`} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-apple-50 transition-colors">
+            <div key={`${item.title}-${item.year}-${index}`} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-apple-50 transition-colors">
               {/* Ranking Badge */}
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
                 index === 0 ? 'bg-yellow-500' : 

@@ -12,6 +12,8 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
   const [editNoteText, setEditNoteText] = useState('');
   const [isUpdatingNote, setIsUpdatingNote] = useState(false);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
   const handleAddNote = async () => {
     if (!note.trim()) return;
@@ -82,6 +84,12 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
     setEditNoteText('');
   };
 
+  // Reset image error state when student changes
+  React.useEffect(() => {
+    setImageError(false);
+    setImageLoading(true);
+  }, [student.profile_picture_url]);
+
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this student profile?')) {
       try {
@@ -103,17 +111,29 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
       {/* Header with Profile Picture */}
       <div className="relative h-32 bg-gradient-to-br from-primary-500 to-primary-600 flex-shrink-0">
         <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
-          <div 
+          <div
             className="w-16 h-16 rounded-full border-4 border-white shadow-apple overflow-hidden bg-white cursor-pointer transition-transform duration-200 hover:scale-110"
-            onMouseEnter={() => student.profile_picture_url && setShowEnlargedImage(true)}
+            onMouseEnter={() => student.profile_picture_url && !imageError && setShowEnlargedImage(true)}
             onMouseLeave={() => setShowEnlargedImage(false)}
           >
-            {student.profile_picture_url ? (
-              <img
-                src={student.profile_picture_url}
-                alt={student.full_name}
-                className="w-full h-full object-cover"
-              />
+            {student.profile_picture_url && !imageError ? (
+              <>
+                {imageLoading && (
+                  <div className="w-full h-full bg-apple-100 flex items-center justify-center">
+                    <div className="animate-pulse w-8 h-8 rounded-full bg-apple-300"></div>
+                  </div>
+                )}
+                <img
+                  src={student.profile_picture_url}
+                  alt={student.full_name}
+                  className={`w-full h-full object-cover ${imageLoading ? 'hidden' : ''}`}
+                  onLoad={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageError(true);
+                    setImageLoading(false);
+                  }}
+                />
+              </>
             ) : (
               <div className="w-full h-full bg-apple-100 flex items-center justify-center">
                 <User className="h-8 w-8 text-apple-400" />
@@ -355,7 +375,7 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
       </div>
 
       {/* Enlarged Profile Picture Overlay */}
-      {showEnlargedImage && student.profile_picture_url && (
+      {showEnlargedImage && student.profile_picture_url && !imageError && (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
           <motion.div
             initial={{ opacity: 0, scale: 0.3 }}
@@ -372,6 +392,7 @@ const StudentCard = ({ student, onAddNote, onDeleteStudent, onStudentsChange, ca
                 src={student.profile_picture_url}
                 alt={student.full_name}
                 className="w-full h-full object-cover"
+                onError={() => setShowEnlargedImage(false)}
               />
             </div>
           </motion.div>

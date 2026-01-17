@@ -44,7 +44,13 @@ const TOTAL_ROWS = CLASSROOM_LAYOUT.length;
 const Seat = ({ rowLetter, rowIndex, seatIndex, student, onAssignStudent, onRemoveStudent, zoom, isSelected, onSelect, isBlurred, compactMode }) => {
   const seatId = `${rowIndex}-${seatIndex}`;
   const isEmpty = !student;
-  
+  const [imageError, setImageError] = useState(false);
+
+  // Reset image error when student changes
+  useEffect(() => {
+    setImageError(false);
+  }, [student?.id, student?.profile_picture_url]);
+
   const handleClick = (e) => {
     e.stopPropagation();
     onSelect(seatId);
@@ -129,12 +135,13 @@ const Seat = ({ rowLetter, rowIndex, seatIndex, student, onAssignStudent, onRemo
     >
       {student ? (
         <div className="w-full h-full rounded-lg overflow-hidden">
-          {student.profile_picture_url ? (
+          {student.profile_picture_url && !imageError ? (
             <img
               src={student.profile_picture_url}
               alt={student.full_name}
               className="w-full h-full object-cover"
               draggable={false}
+              onError={() => setImageError(true)}
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
@@ -164,6 +171,7 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
   const cardRef = useRef(null);
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (cardRef.current && canvasRef.current) {
@@ -219,16 +227,17 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
         </button>
         
         <div className="flex justify-center mb-2">
-          <div 
+          <div
             className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white cursor-pointer transition-transform duration-200 hover:scale-110"
-            onMouseEnter={() => student.profile_picture_url && setShowEnlargedImage(true)}
+            onMouseEnter={() => student.profile_picture_url && !imageError && setShowEnlargedImage(true)}
             onMouseLeave={() => setShowEnlargedImage(false)}
           >
-            {student.profile_picture_url ? (
+            {student.profile_picture_url && !imageError ? (
               <img
                 src={student.profile_picture_url}
                 alt={student.full_name}
                 className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
@@ -355,7 +364,7 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
         </div>
       </div>
 
-      {showEnlargedImage && student.profile_picture_url && (
+      {showEnlargedImage && student.profile_picture_url && !imageError && (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
           <motion.div
             initial={{ opacity: 0, scale: 0.3 }}
@@ -371,6 +380,7 @@ const StudentProfileCard = ({ student, onClose, canvasRef, studentPosition, zoom
                 src={student.profile_picture_url}
                 alt={student.full_name}
                 className="w-full h-full object-cover"
+                onError={() => setShowEnlargedImage(false)}
               />
             </div>
           </motion.div>
@@ -970,6 +980,10 @@ const RoomLayout = ({ students, user }) => {
                         src={student.profile_picture_url}
                         alt={student.full_name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center text-white font-bold text-sm">${student.full_name.charAt(0)}</div>`;
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">
@@ -1023,6 +1037,11 @@ const RoomLayout = ({ students, user }) => {
                           src={student.profile_picture_url}
                           alt={student.full_name}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.classList.add('bg-gradient-to-br', 'from-primary-400', 'to-primary-600', 'flex', 'items-center', 'justify-center');
+                            e.target.parentElement.innerHTML = `<span class="text-white font-bold text-6xl">${student.full_name.charAt(0)}</span>`;
+                          }}
                         />
                       </div>
                       <div className="text-center mt-4">

@@ -11,7 +11,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-center items-center h-16">
             <h1 className="text-2xl font-bold text-apple-900 font-sf">
-              IT Eth, Pol, & Sec - Fall 2025
+              Information Technology Ethics, Policy & Security
             </h1>
           </div>
         </div>
@@ -177,7 +177,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-apple-600">
             <p className="text-sm">
-              &copy; 2025 Lokesh Samudrala. All rights reserved.
+              &copy; 2025 Eric Asch. All rights reserved. Developed by <a href='https://github.com/lokeshsamudrala'>Lokesh Samudrala</a>.
             </p>
           </div>
         </div>

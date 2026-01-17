@@ -95,7 +95,7 @@ function App() {
     element={
       user ? (
         <>
-          <Header user={user} onLogout={handleLogout} title="IT Eth, Pol, & Sec - Fall 2025" />
+          <Header user={user} onLogout={handleLogout} title="Information Technology Ethics, Policy & Security" />
           <Dashboard user={user} />
         </>
       ) : (

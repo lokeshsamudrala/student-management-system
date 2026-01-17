@@ -26,7 +26,7 @@ const ProfileForm = () => {
   
   const fileInputRef = useRef(null);
   
-  const { register, handleSubmit, formState: { errors }, reset, trigger } = useForm();
+  const { register, formState: { errors }, reset, trigger } = useForm();
 
   const majors = [
     'Computer Science',
@@ -110,18 +110,18 @@ const ProfileForm = () => {
   const uploadImage = async (file) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('profile-pictures')
       .upload(fileName, file);
 
     if (error){
         throw error;
-    } 
-    
+    }
+
     const { data: { publicUrl } } = await supabase.storage
       .from('profile-pictures')
       .getPublicUrl(fileName);
-    
+
     return publicUrl;
   };
 

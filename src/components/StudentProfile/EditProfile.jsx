@@ -35,6 +35,7 @@ const EditProfile = ({ studentId, onClose, onUpdate }) => {
 
   useEffect(() => {
     fetchStudent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchStudent = async () => {
@@ -98,16 +99,16 @@ const EditProfile = ({ studentId, onClose, onUpdate }) => {
   const uploadImage = async (file) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('profile-pictures')
       .upload(fileName, file);
 
     if (error) throw error;
-    
+
     const { data: { publicUrl } } = await supabase.storage
       .from('profile-pictures')
       .getPublicUrl(fileName);
-    
+
     return publicUrl;
   };
 

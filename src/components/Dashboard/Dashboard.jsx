@@ -56,12 +56,27 @@ const Dashboard = ({ user }) => {
     }
 
     // Convert Maps to sorted arrays efficiently
+    // Sort by count first, then by rating as tiebreaker
     const topMovies = Array.from(movieCounts.values())
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => {
+        // Primary sort: by student count (descending)
+        if (b.count !== a.count) {
+          return b.count - a.count;
+        }
+        // Tiebreaker: by rating (descending), treating missing ratings as 0
+        return (b.rating || 0) - (a.rating || 0);
+      })
       .slice(0, 10);
 
     const topTVShows = Array.from(tvCounts.values())
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => {
+        // Primary sort: by student count (descending)
+        if (b.count !== a.count) {
+          return b.count - a.count;
+        }
+        // Tiebreaker: by rating (descending), treating missing ratings as 0
+        return (b.rating || 0) - (a.rating || 0);
+      })
       .slice(0, 10);
 
     return {

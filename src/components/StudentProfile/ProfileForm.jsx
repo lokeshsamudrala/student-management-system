@@ -460,20 +460,20 @@ const ProfileForm = () => {
                   {...register('email', { 
                     required: 'UNCC email is required',
                     pattern: {
-                      value: /^[^\s@]+@(uncc\.edu|charlotte\.edu)$/i,
-                      message: 'Email must end with @uncc.edu or @charlotte.edu'
+                      value: /^[^\s@]+@(charlotte\.edu)$/i,
+                      message: 'Email must end with @charlotte.edu'
                     }
                   })}
                   name="email"
                   type="email"
                   className="w-full px-4 py-3 border border-apple-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="your.email@uncc.edu"
+                  placeholder="your.email@charlotte.edu"
                 />
                 {errors.email && (
                   <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
                 )}
                 <p className="text-xs text-apple-500 mt-1">
-                  Must be a UNCC email address (@uncc.edu or @charlotte.edu)
+                  Must be a UNCC email address (@charlotte.edu)
                 </p>
               </div>
 

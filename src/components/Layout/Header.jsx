@@ -10,8 +10,7 @@ const Header = ({ user, onLogout, title = "Student Management System" }) => {
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-apple-900 font-sf leading-tight truncate">
               {title === "Student Management System" ? (
                 <>
-                  IT Eth, Pol, & Sec
-                  <span className="hidden sm:inline sm:ml-2">- Fall 2025</span>
+                  Information Technology Ethics, Policy & Security
                 </>
               ) : (
                 title
